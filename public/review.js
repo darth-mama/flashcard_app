@@ -4,6 +4,8 @@ let currentCard = 0;
 let isFlipped = false;
 let currentDeckId = null;
 let isReviewPile = false;
+let isEditing = false;
+let editingCardId = null;
 
 console.log("review.js loaded - starting execution");
 
@@ -51,6 +53,31 @@ function updateDeckSelect() {
     if (deck.id === currentDeckId && !isReviewPile) option.selected = true;
     deckSelect.appendChild(option);
   });
+}
+
+async function editDeckName() {
+  if (!currentDeckId) {
+    alert("Please select a deck to edit!");
+    return;
+  }
+  const deck = decks.find((d) => d.id === currentDeckId);
+  const newName = prompt("Enter new deck name:", deck.name);
+  if (!newName || newName.trim() === deck.name) return;
+
+  try {
+    const response = await fetch(`/decks/${currentDeckId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    deck.name = newName.trim();
+    updateDeckSelect();
+    alert("Deck name updated successfully!");
+  } catch (error) {
+    console.error("Error updating deck name:", error);
+    alert(error.message);
+  }
 }
 
 async function deleteDeck() {
@@ -236,6 +263,86 @@ async function addCard() {
   }
 }
 
+function startEditCard() {
+  if (cards.length === 0) {
+    alert("No card selected to edit!");
+    return;
+  }
+  isEditing = true;
+  editingCardId = cards[currentCard].id;
+
+  document.getElementById("termInput").value = cards[currentCard].term;
+  document.getElementById("definitionInput").value =
+    cards[currentCard].definition;
+  // Note: File inputs can't be pre-filled with existing images for security reasons
+  document.getElementById("termImageInput").value = "";
+  document.getElementById("definitionImageInput").value = "";
+
+  document.querySelector("button[onclick='addCard()']").style.display = "none";
+  document.getElementById("editCardButton").style.display = "inline-block";
+  document.getElementById("cancelEditButton").style.display = "inline-block";
+}
+
+async function editCard() {
+  if (!isEditing || !editingCardId) return;
+
+  const term = document.getElementById("termInput").value;
+  const definition = document.getElementById("definitionInput").value;
+  const termImageFile = document.getElementById("termImageInput").files[0];
+  const definitionImageFile = document.getElementById("definitionImageInput")
+    .files[0];
+
+  if (!term || !definition) {
+    alert("Please provide both term and definition!");
+    return;
+  }
+
+  try {
+    let termImage = cards[currentCard].term_image;
+    let definitionImage = cards[currentCard].definition_image;
+    if (termImageFile) termImage = await fileToBase64(termImageFile);
+    if (definitionImageFile)
+      definitionImage = await fileToBase64(definitionImageFile);
+
+    const response = await fetch(`/cards/${editingCardId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        term,
+        definition,
+        termImage,
+        definitionImage,
+      }),
+    });
+
+    if (!response.ok) throw new Error(await response.text());
+    const updatedCard = await response.json();
+    cards[currentCard] = updatedCard;
+
+    cancelEdit(); // Reset form
+    updateCard();
+    alert("Card updated successfully!");
+  } catch (error) {
+    console.error("Error updating card:", error);
+    alert(error.message);
+  }
+}
+
+function cancelEdit() {
+  isEditing = false;
+  editingCardId = null;
+
+  document.getElementById("termInput").value = "";
+  document.getElementById("definitionInput").value = "";
+  document.getElementById("termImageInput").value = "";
+  document.getElementById("definitionImageInput").value = "";
+
+  document.querySelector("button[onclick='addCard()']").style.display =
+    "inline-block";
+  document.getElementById("editCardButton").style.display = "none";
+  document.getElementById("cancelEditButton").style.display = "none";
+}
+
 async function deleteCard() {
   if (cards.length === 0) {
     alert("No card selected to delete!");
@@ -285,42 +392,51 @@ async function toggleReview() {
 function flipCard() {
   if (cards.length > 0) {
     isFlipped = !isFlipped;
-    card.classList.toggle("flipped");
+    document.getElementById("card").classList.toggle("flipped");
   }
 }
 
 function updateCard() {
   if (cards.length > 0) {
-    frontText.textContent = cards[currentCard].term;
-    backText.textContent = cards[currentCard].definition;
-    frontImage.src = cards[currentCard].term_image || "";
-    frontImage.style.display = cards[currentCard].term_image ? "block" : "none";
-    backImage.src = cards[currentCard].definition_image || "";
-    backImage.style.display = cards[currentCard].definition_image
+    document.getElementById("frontText").textContent = cards[currentCard].term;
+    document.getElementById("backText").textContent =
+      cards[currentCard].definition;
+    document.getElementById("frontImage").src =
+      cards[currentCard].term_image || "";
+    document.getElementById("frontImage").style.display = cards[currentCard]
+      .term_image
+      ? "block"
+      : "none";
+    document.getElementById("backImage").src =
+      cards[currentCard].definition_image || "";
+    document.getElementById("backImage").style.display = cards[currentCard]
+      .definition_image
       ? "block"
       : "none";
     document.getElementById("reviewCheckbox").checked =
       cards[currentCard].review;
     document.getElementById("reviewCheckbox").disabled = isReviewPile;
-    if (isFlipped) card.classList.add("flipped");
-    else card.classList.remove("flipped");
+    if (isFlipped) document.getElementById("card").classList.add("flipped");
+    else document.getElementById("card").classList.remove("flipped");
   } else {
-    frontText.textContent = currentDeckId
+    document.getElementById("frontText").textContent = currentDeckId
       ? "No cards in this deck"
       : isReviewPile
       ? "No cards in review pile"
       : "No deck selected";
-    backText.textContent = "Add some cards or select a deck!";
-    frontImage.style.display = "none";
-    backImage.style.display = "none";
+    document.getElementById("backText").textContent =
+      "Add some cards or select a deck!";
+    document.getElementById("frontImage").style.display = "none";
+    document.getElementById("backImage").style.display = "none";
     document.getElementById("reviewCheckbox").checked = false;
     document.getElementById("reviewCheckbox").disabled = true;
-    card.classList.remove("flipped");
+    document.getElementById("card").classList.remove("flipped");
   }
   updateNavigationButtons();
 }
 
 function updateCounter() {
+  const counter = document.getElementById("counter");
   if (counter)
     counter.textContent = `${cards.length > 0 ? currentCard + 1 : 0} / ${
       cards.length

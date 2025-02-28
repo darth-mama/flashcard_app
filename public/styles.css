@@ -32,39 +32,32 @@ body {
     height: 50px;
 }
 
-#options {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 20px;
-}
-
-#choose-deck,
-#create-deck {
-    width: 45%;
-    padding: 10px;
-}
-
-#choose-deck h2,
-#create-deck h2 {
-    margin-bottom: 15px;
-    font-size: 1.5em;
-}
-
-#deckSelect,
-#deckSearch {
-    width: 100%;
-    max-width: 250px;
-    margin-bottom: 10px;
-}
-
-#options button {
-    padding: 10px 20px;
-    font-size: 16px;
-}
-
 #deck-container {
     margin: 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+#deck-options {
+    display: flex;
+    gap: 10px;
+}
+
+.deck-option {
+    cursor: pointer;
+    padding: 5px 10px;
+    color: #3498db;
+    font-weight: bold;
+}
+
+.deck-option:not(:first-child) {
+    border-left: 1px solid #ccc;
+}
+
+.deck-option:hover {
+    color: #2980b9;
+    text-decoration: underline;
 }
 
 #content-wrapper {
@@ -157,6 +150,14 @@ button:hover {
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+button.edit {
+    background-color: #f39c12;
+}
+
+button.edit:hover {
+    background-color: #e67e22;
 }
 
 button.delete {

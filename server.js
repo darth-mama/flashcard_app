@@ -49,13 +49,36 @@ app.get("/decks", async (req, res) => {
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       GROUP BY d.id, d.name
-      ORDER BY d.id
+      ORDER BY d.name
     `);
     console.log("Returning decks:", result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err.stack);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.put("/decks/:deckId", async (req, res) => {
+  const { deckId } = req.params;
+  const { name } = req.body;
+  try {
+    const parsedDeckId = parseInt(deckId);
+    if (isNaN(parsedDeckId) || parsedDeckId <= 0)
+      throw new Error("Invalid deck ID");
+    const validatedName = validateInput(name, "Deck name");
+    const result = await pool.query(
+      "UPDATE decks SET name = $1 WHERE id = $2 RETURNING *",
+      [validatedName, parsedDeckId]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Deck not found" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err.stack);
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -120,7 +143,6 @@ app.get("/cards/:deckId", async (req, res) => {
 });
 
 app.get("/review-pile", async (req, res) => {
-  // Changed from /review to /review-pile
   try {
     const result = await pool.query(
       "SELECT * FROM cards WHERE review = TRUE ORDER BY id"
@@ -156,6 +178,42 @@ app.post("/cards", async (req, res) => {
         validatedDefinitionImage,
       ]
     );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err.stack);
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
+  }
+});
+
+app.put("/cards/:cardId", async (req, res) => {
+  const { cardId } = req.params;
+  const { term, definition, termImage, definitionImage } = req.body;
+  try {
+    const parsedCardId = parseInt(cardId);
+    if (isNaN(parsedCardId) || parsedCardId <= 0)
+      throw new Error("Invalid card ID");
+    const validatedTerm = validateInput(term, "Term");
+    const validatedDefinition = validateInput(definition, "Definition", 1000);
+    const validatedTermImage = validateImage(termImage, "Term image");
+    const validatedDefinitionImage = validateImage(
+      definitionImage,
+      "Definition image"
+    );
+
+    const result = await pool.query(
+      "UPDATE cards SET term = $1, definition = $2, term_image = $3, definition_image = $4 WHERE id = $5 RETURNING *",
+      [
+        validatedTerm,
+        validatedDefinition,
+        validatedTermImage,
+        validatedDefinitionImage,
+        parsedCardId,
+      ]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Card not found" });
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err.stack);
@@ -211,7 +269,6 @@ app.put("/cards/:cardId/review", async (req, res) => {
 });
 
 app.delete("/review-pile", async (req, res) => {
-  // Changed from /review to /review-pile
   try {
     const result = await pool.query(
       "UPDATE cards SET review = FALSE WHERE review = TRUE RETURNING *"
@@ -223,7 +280,6 @@ app.delete("/review-pile", async (req, res) => {
   }
 });
 
-// Serve specific HTML pages
 app.get("/", (req, res) => {
   console.log("Serving landing page: index.html");
   res.sendFile(path.join(__dirname, "public", "index.html"));
