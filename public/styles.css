@@ -83,7 +83,8 @@ body {
 #card {
     width: 100%;
     max-width: 400px;
-    height: 300px;
+    height: 400px;
+    /* Increased to fit 10 lines (~12px line-height * 10 + padding) */
     background-color: white;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -202,7 +203,8 @@ select {
 
 .card-image {
     width: 100%;
-    height: 80%;
+    height: 50%;
+    /* Reduced to leave room for text */
     object-fit: contain;
     margin: 10px 0;
     display: none;
@@ -210,10 +212,16 @@ select {
 
 #front span,
 #back span {
+    font-size: 14px;
+    line-height: 1.4;
+    /* ~20px per line, 10 lines = 200px */
     flex: 1;
-    overflow: auto;
-    max-height: 15%;
+    overflow: visible;
+    /* Allow full text visibility */
+    max-height: none;
+    /* Remove scroll limit */
     white-space: pre-wrap;
+    padding: 10px;
 }
 
 #controls label {
@@ -227,9 +235,16 @@ select {
     max-width: 400px;
     text-align: left;
     margin-top: 20px;
+    font-size: 14px;
+    line-height: 1.4;
 }
 
 #temp-cards div {
     padding: 10px;
     border-bottom: 1px solid #ccc;
+    min-height: 20px;
+    /* Ensure visibility for short text */
+    max-height: 200px;
+    /* Cap at 10 lines, optional scrollbar if exceeds */
+    overflow-y: auto;
 }

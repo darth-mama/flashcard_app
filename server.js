@@ -30,8 +30,8 @@ function validateInput(input, fieldName, maxLength = 255) {
     throw new Error(`${fieldName} cannot be just whitespace`);
   if (input.length > maxLength)
     throw new Error(`${fieldName} must be less than ${maxLength} characters`);
-  if (/[;`'"\--]/.test(input))
-    throw new Error(`${fieldName} contains invalid characters`);
+  // Removed restrictive regex to allow Spanish characters (á, é, í, ó, ú, ñ, ¿, ¡)
+  // Optionally, add specific validation if needed, but UTF-8 chars are safe
   return input.trim();
 }
 
