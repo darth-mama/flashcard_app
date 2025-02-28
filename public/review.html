@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Review Flashcards</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="header">
+        <img id="logo" src="https://via.placeholder.com/50" alt="Flashcard App Logo" onclick="window.location.href='/'">
+        <h1>Review Flashcards</h1>
+    </div>
+    <div id="container">
+        <div id="deck-container">
+            <select id="deckSelect" onchange="loadSelectedDeck()">
+                <option value="">Select a deck</option>
+            </select>
+            <button onclick="loadReviewPile()">View Review Pile</button>
+            <button class="delete" onclick="deleteDeck()">Delete Deck</button>
+            <button class="delete" onclick="clearReviewPile()">Clear Review Pile</button>
+        </div>
+        <div id="content-wrapper">
+            <div id="form-container">
+                <div class="form-group">
+                    <textarea id="termInput" placeholder="Enter term" rows="4"></textarea>
+                    <input type="file" id="termImageInput" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <textarea id="definitionInput" placeholder="Enter definition" rows="4"></textarea>
+                    <input type="file" id="definitionImageInput" accept="image/*">
+                </div>
+                <button onclick="addCard()">Add Card</button>
+            </div>
+            <div id="card-container">
+                <div id="card" onclick="flipCard()">
+                    <div id="front" class="card-face">
+                        <span id="frontText"></span>
+                        <img id="frontImage" class="card-image">
+                    </div>
+                    <div id="back" class="card-face">
+                        <span id="backText"></span>
+                        <img id="backImage" class="card-image">
+                    </div>
+                </div>
+                <div id="controls">
+                    <button onclick="prevCard()">Previous</button>
+                    <button onclick="nextCard()">Next</button>
+                    <span id="counter">0 / 0</span>
+                    <label><input type="checkbox" id="reviewCheckbox" onchange="toggleReview()"> Mark for Review</label>
+                    <button class="delete" onclick="deleteCard()">Delete Card</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="review.js"></script>
+</body>
+
+</html>

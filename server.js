@@ -6,57 +6,52 @@ const app = express();
 const port = 3000;
 
 app.use(express.json({ limit: "10mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    index: false,
+    setHeaders: (res, filePath) => {
+      console.log(`Serving file: ${filePath}`);
+    },
+  })
+);
 
-// PostgreSQL connection
 const pool = new Pool({
-  user: "postgres", // Replace with your PostgreSQL username
+  user: "postgres",
   host: "localhost",
   database: "flashcards",
-  password: "your_password", // Replace with your PostgreSQL password
+  password: "your_password",
   port: 5432,
 });
 
-// Input validation function
 function validateInput(input, fieldName, maxLength = 255) {
-  if (!input || typeof input !== "string") {
+  if (!input || typeof input !== "string")
     throw new Error(`${fieldName} must be a non-empty string`);
-  }
-  if (input.trim().length === 0) {
+  if (input.trim().length === 0)
     throw new Error(`${fieldName} cannot be just whitespace`);
-  }
-  if (input.length > maxLength) {
+  if (input.length > maxLength)
     throw new Error(`${fieldName} must be less than ${maxLength} characters`);
-  }
-  const dangerousPattern = /[;`'"\--]/;
-  if (dangerousPattern.test(input)) {
+  if (/[;`'"\--]/.test(input))
     throw new Error(`${fieldName} contains invalid characters`);
-  }
   return input.trim();
 }
 
-// Validate base64 image
 function validateImage(image, fieldName) {
   if (!image) return null;
-  if (typeof image !== "string" || !image.startsWith("data:image/")) {
+  if (typeof image !== "string" || !image.startsWith("data:image/"))
     throw new Error(`${fieldName} must be a valid base64 image`);
-  }
   return image;
 }
 
-// Get all decks with card counts
 app.get("/decks", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
-        d.id,
-        d.name,
-        COUNT(c.id)::int AS card_count
+      SELECT d.id, d.name, COUNT(c.id)::int AS card_count
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       GROUP BY d.id, d.name
       ORDER BY d.id
     `);
+    console.log("Returning decks:", result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err.stack);
@@ -64,7 +59,6 @@ app.get("/decks", async (req, res) => {
   }
 });
 
-// Create a new deck
 app.post("/decks", async (req, res) => {
   const { name } = req.body;
   try {
@@ -73,26 +67,45 @@ app.post("/decks", async (req, res) => {
       "INSERT INTO decks (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *",
       [validatedName]
     );
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0)
       return res.status(400).json({ error: "Deck name already exists" });
-    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err.stack);
-    res.status(err.message ? 400 : 500).json({
-      error: err.message || "Internal server error",
-    });
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
   }
 });
 
-// Get all cards for a specific deck
+app.delete("/decks/:deckId", async (req, res) => {
+  const { deckId } = req.params;
+  try {
+    const parsedDeckId = parseInt(deckId);
+    if (isNaN(parsedDeckId) || parsedDeckId <= 0)
+      throw new Error("Invalid deck ID");
+    await pool.query("DELETE FROM cards WHERE deck_id = $1", [parsedDeckId]);
+    const result = await pool.query(
+      "DELETE FROM decks WHERE id = $1 RETURNING *",
+      [parsedDeckId]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Deck not found" });
+    res.json({ message: "Deck deleted successfully" });
+  } catch (err) {
+    console.error(err.stack);
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
+  }
+});
+
 app.get("/cards/:deckId", async (req, res) => {
   const { deckId } = req.params;
   try {
     const parsedDeckId = parseInt(deckId);
-    if (isNaN(parsedDeckId) || parsedDeckId <= 0) {
+    if (isNaN(parsedDeckId) || parsedDeckId <= 0)
       throw new Error("Invalid deck ID");
-    }
     const result = await pool.query(
       "SELECT * FROM cards WHERE deck_id = $1 ORDER BY id",
       [parsedDeckId]
@@ -100,14 +113,14 @@ app.get("/cards/:deckId", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err.stack);
-    res.status(err.message ? 400 : 500).json({
-      error: err.message || "Internal server error",
-    });
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
   }
 });
 
-// Get all cards marked for review
-app.get("/review", async (req, res) => {
+app.get("/review-pile", async (req, res) => {
+  // Changed from /review to /review-pile
   try {
     const result = await pool.query(
       "SELECT * FROM cards WHERE review = TRUE ORDER BY id"
@@ -119,14 +132,12 @@ app.get("/review", async (req, res) => {
   }
 });
 
-// Add a new card to a specific deck
 app.post("/cards", async (req, res) => {
   const { deckId, term, definition, termImage, definitionImage } = req.body;
   try {
     const parsedDeckId = parseInt(deckId);
-    if (isNaN(parsedDeckId) || parsedDeckId <= 0) {
+    if (isNaN(parsedDeckId) || parsedDeckId <= 0)
       throw new Error("Invalid deck ID");
-    }
     const validatedTerm = validateInput(term, "Term");
     const validatedDefinition = validateInput(definition, "Definition", 1000);
     const validatedTermImage = validateImage(termImage, "Term image");
@@ -148,41 +159,86 @@ app.post("/cards", async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err.stack);
-    res.status(err.message ? 400 : 500).json({
-      error: err.message || "Internal server error",
-    });
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
   }
 });
 
-// Update review status of a card
+app.delete("/cards/:cardId", async (req, res) => {
+  const { cardId } = req.params;
+  try {
+    const parsedCardId = parseInt(cardId);
+    if (isNaN(parsedCardId) || parsedCardId <= 0)
+      throw new Error("Invalid card ID");
+    const result = await pool.query(
+      "DELETE FROM cards WHERE id = $1 RETURNING *",
+      [parsedCardId]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Card not found" });
+    res.json({ message: "Card deleted successfully" });
+  } catch (err) {
+    console.error(err.stack);
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
+  }
+});
+
 app.put("/cards/:cardId/review", async (req, res) => {
   const { cardId } = req.params;
   const { review } = req.body;
   try {
     const parsedCardId = parseInt(cardId);
-    if (isNaN(parsedCardId) || parsedCardId <= 0) {
+    if (isNaN(parsedCardId) || parsedCardId <= 0)
       throw new Error("Invalid card ID");
-    }
-    if (typeof review !== "boolean") {
+    if (typeof review !== "boolean")
       throw new Error("Review status must be a boolean");
-    }
     const result = await pool.query(
       "UPDATE cards SET review = $1 WHERE id = $2 RETURNING *",
       [review, parsedCardId]
     );
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0)
       return res.status(404).json({ error: "Card not found" });
-    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err.stack);
-    res.status(err.message ? 400 : 500).json({
-      error: err.message || "Internal server error",
-    });
+    res
+      .status(err.message ? 400 : 500)
+      .json({ error: err.message || "Internal server error" });
   }
 });
 
-// Error handling middleware
+app.delete("/review-pile", async (req, res) => {
+  // Changed from /review to /review-pile
+  try {
+    const result = await pool.query(
+      "UPDATE cards SET review = FALSE WHERE review = TRUE RETURNING *"
+    );
+    res.json({ message: `Cleared ${result.rowCount} cards from review pile` });
+  } catch (err) {
+    console.error(err.stack);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Serve specific HTML pages
+app.get("/", (req, res) => {
+  console.log("Serving landing page: index.html");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/review", (req, res) => {
+  console.log("Serving review page: review.html");
+  res.sendFile(path.join(__dirname, "public", "review.html"));
+});
+
+app.get("/create", (req, res) => {
+  console.log("Serving create page: create.html");
+  res.sendFile(path.join(__dirname, "public", "create.html"));
+});
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: "Unexpected server error" });

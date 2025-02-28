@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Create New Deck</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="header">
+        <img id="logo" src="https://via.placeholder.com/50" alt="Flashcard App Logo" onclick="window.location.href='/'">
+        <h1>Create New Deck</h1>
+    </div>
+    <div id="container">
+        <div id="deck-container">
+            <input type="text" id="deckNameInput" placeholder="Enter deck name">
+            <button onclick="createDeck()">Create Deck</button>
+        </div>
+        <div id="content-wrapper">
+            <div id="form-container">
+                <div class="form-group">
+                    <textarea id="termInput" placeholder="Enter term" rows="4"></textarea>
+                    <input type="file" id="termImageInput" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <textarea id="definitionInput" placeholder="Enter definition" rows="4"></textarea>
+                    <input type="file" id="definitionImageInput" accept="image/*">
+                </div>
+                <button onclick="addTempCard()">Add Card</button>
+            </div>
+            <div id="temp-cards-container">
+                <div id="temp-cards"></div>
+            </div>
+        </div>
+    </div>
+    <script src="create.js"></script>
+</body>
+
+</html>

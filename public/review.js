@@ -5,37 +5,46 @@ let isFlipped = false;
 let currentDeckId = null;
 let isReviewPile = false;
 
-const card = document.getElementById("card");
-const front = document.getElementById("front");
-const back = document.getElementById("back");
-const frontText = document.getElementById("frontText");
-const backText = document.getElementById("backText");
-const frontImage = document.getElementById("frontImage");
-const backImage = document.getElementById("backImage");
-const deckSelect = document.getElementById("deckSelect");
-const reviewCheckbox = document.getElementById("reviewCheckbox");
-const counter = document.getElementById("counter");
+console.log("review.js loaded - starting execution");
 
-// Load all decks from the server
 async function loadDecks() {
+  console.log("Fetching decks...");
   try {
     const response = await fetch("/decks");
-    if (!response.ok) throw new Error("Failed to fetch decks");
+    if (!response.ok)
+      throw new Error(
+        `Fetch failed: ${response.status} - ${await response.text()}`
+      );
     decks = await response.json();
+    console.log("Decks fetched:", decks);
     updateDeckSelect();
-    if (decks.length > 0 && !currentDeckId && !isReviewPile) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const preselectedDeckId = urlParams.get("deckId");
+    if (
+      preselectedDeckId &&
+      decks.some((d) => d.id === parseInt(preselectedDeckId))
+    ) {
+      currentDeckId = parseInt(preselectedDeckId);
+      console.log("Preselecting deck from URL:", currentDeckId);
+      await loadCards();
+    } else if (decks.length > 0 && !currentDeckId && !isReviewPile) {
       currentDeckId = decks[0].id;
-      loadCards();
+      console.log("Auto-selecting deck:", currentDeckId);
+      await loadCards();
     }
   } catch (error) {
-    console.error("Error loading decks:", error);
+    console.error("Error fetching decks:", error);
+    document.getElementById("deckSelect").innerHTML =
+      '<option value="">Error loading decks</option>';
   }
 }
 
-// Update the deck dropdown
 function updateDeckSelect() {
+  console.log("Updating deck select with:", decks);
+  const deckSelect = document.getElementById("deckSelect");
   deckSelect.innerHTML = '<option value="">Select a deck</option>';
   decks.forEach((deck) => {
+    console.log("Adding deck:", deck.id, deck.name, deck.card_count);
     const option = document.createElement("option");
     option.value = deck.id;
     option.textContent = `${deck.name} (${deck.card_count} cards)`;
@@ -44,38 +53,51 @@ function updateDeckSelect() {
   });
 }
 
-// Create a new deck
-async function createDeck() {
-  const name = document.getElementById("deckNameInput").value;
-  if (!name) {
-    alert("Please enter a deck name!");
+async function deleteDeck() {
+  if (!currentDeckId) {
+    alert("Please select a deck to delete!");
     return;
   }
+  const deckToDelete = decks.find((d) => d.id === currentDeckId);
+  if (!deckToDelete) {
+    alert("Selected deck not found in list!");
+    return;
+  }
+  if (
+    !confirm(
+      `Are you sure you want to delete "${deckToDelete.name}" and all its cards?`
+    )
+  )
+    return;
+
+  console.log(`Attempting to delete deck ID: ${currentDeckId}`);
   try {
-    const response = await fetch("/decks", {
-      method: "POST",
+    const response = await fetch(`/decks/${currentDeckId}`, {
+      method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
     });
-    if (!response.ok) throw new Error(await response.text());
-    const newDeck = await response.json();
-    if (!newDeck.id) throw new Error("Deck creation failed");
-    decks.push(newDeck);
-    currentDeckId = newDeck.id;
-    isReviewPile = false;
+    console.log("Delete response status:", response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Failed to delete deck: ${response.status} - ${errorText}`
+      );
+    }
+    decks = decks.filter((deck) => deck.id !== currentDeckId);
+    currentDeckId = null;
     cards = [];
     currentCard = 0;
-    document.getElementById("deckNameInput").value = "";
     updateDeckSelect();
     updateCard();
     updateCounter();
+    console.log("Deck deleted locally, UI updated");
+    alert("Deck deleted successfully!");
   } catch (error) {
-    console.error("Error creating deck:", error);
-    alert(error.message);
+    console.error("Error deleting deck:", error);
+    alert(`Error: ${error.message}`);
   }
 }
 
-// Load cards for the selected deck
 async function loadCards() {
   if (!currentDeckId || isReviewPile) return;
   try {
@@ -91,10 +113,9 @@ async function loadCards() {
   }
 }
 
-// Load the review pile
 async function loadReviewPile() {
   try {
-    const response = await fetch("/review");
+    const response = await fetch("/review-pile");
     if (!response.ok) throw new Error("Failed to fetch review pile");
     cards = await response.json();
     currentDeckId = null;
@@ -109,9 +130,30 @@ async function loadReviewPile() {
   }
 }
 
-// Load the selected deck when changed
+async function clearReviewPile() {
+  if (
+    !confirm("Are you sure you want to clear all cards from the review pile?")
+  )
+    return;
+  try {
+    const response = await fetch("/review-pile", { method: "DELETE" });
+    if (!response.ok) throw new Error(await response.text());
+    if (isReviewPile) {
+      cards = [];
+      currentCard = 0;
+      updateCard();
+      updateCounter();
+    }
+    loadDecks();
+    alert("Review pile cleared successfully!");
+  } catch (error) {
+    console.error("Error clearing review pile:", error);
+    alert(error.message);
+  }
+}
+
 function loadSelectedDeck() {
-  const selectedDeckId = deckSelect.value;
+  const selectedDeckId = document.getElementById("deckSelect").value;
   if (selectedDeckId) {
     currentDeckId = parseInt(selectedDeckId);
     isReviewPile = false;
@@ -127,7 +169,6 @@ function loadSelectedDeck() {
   }
 }
 
-// Convert file to base64
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -137,13 +178,11 @@ function fileToBase64(file) {
   });
 }
 
-// Add a new card
 async function addCard() {
   if (!currentDeckId) {
-    alert("Please select or create a deck first!");
+    alert("Please select a deck first!");
     return;
   }
-
   const term = document.getElementById("termInput").value;
   const definition = document.getElementById("definitionInput").value;
   const termImageFile = document.getElementById("termImageInput").files[0];
@@ -158,18 +197,9 @@ async function addCard() {
   try {
     let termImage = null;
     let definitionImage = null;
-
-    if (termImageFile) {
-      termImage = await fileToBase64(termImageFile);
-      console.log("Uploaded term image:", termImage.substring(0, 50));
-    }
-    if (definitionImageFile) {
+    if (termImageFile) termImage = await fileToBase64(termImageFile);
+    if (definitionImageFile)
       definitionImage = await fileToBase64(definitionImageFile);
-      console.log(
-        "Uploaded definition image:",
-        definitionImage.substring(0, 50)
-      );
-    }
 
     const response = await fetch("/cards", {
       method: "POST",
@@ -183,14 +213,9 @@ async function addCard() {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${await response.text()}`);
-    }
-
+    if (!response.ok) throw new Error(await response.text());
     const newCard = await response.json();
-    if (!newCard.id) {
-      throw new Error("Card creation failed: No ID returned from server");
-    }
+    if (!newCard.id) throw new Error("Card creation failed");
 
     cards.push(newCard);
     document.getElementById("termInput").value = "";
@@ -211,11 +236,35 @@ async function addCard() {
   }
 }
 
-// Toggle review status
+async function deleteCard() {
+  if (cards.length === 0) {
+    alert("No card selected to delete!");
+    return;
+  }
+  if (!confirm(`Are you sure you want to delete "${cards[currentCard].term}"?`))
+    return;
+  try {
+    const cardId = cards[currentCard].id;
+    const response = await fetch(`/cards/${cardId}`, { method: "DELETE" });
+    if (!response.ok) throw new Error(await response.text());
+    cards.splice(currentCard, 1);
+    if (currentCard >= cards.length && cards.length > 0)
+      currentCard = cards.length - 1;
+    updateCard();
+    updateCounter();
+    updateNavigationButtons();
+    loadDecks();
+    alert("Card deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting card:", error);
+    alert(error.message);
+  }
+}
+
 async function toggleReview() {
   if (cards.length === 0 || isReviewPile) return;
   const cardId = cards[currentCard].id;
-  const newReviewStatus = reviewCheckbox.checked;
+  const newReviewStatus = document.getElementById("reviewCheckbox").checked;
   try {
     const response = await fetch(`/cards/${cardId}/review`, {
       method: "PUT",
@@ -229,11 +278,10 @@ async function toggleReview() {
   } catch (error) {
     console.error("Error toggling review:", error);
     alert(error.message);
-    reviewCheckbox.checked = !newReviewStatus;
+    document.getElementById("reviewCheckbox").checked = !newReviewStatus;
   }
 }
 
-// Flip the card
 function flipCard() {
   if (cards.length > 0) {
     isFlipped = !isFlipped;
@@ -241,67 +289,44 @@ function flipCard() {
   }
 }
 
-// Update the displayed card
 function updateCard() {
   if (cards.length > 0) {
     frontText.textContent = cards[currentCard].term;
     backText.textContent = cards[currentCard].definition;
-
-    if (cards[currentCard].term_image) {
-      frontImage.src = cards[currentCard].term_image;
-      frontImage.style.display = "block";
-      console.log("Term image length:", cards[currentCard].term_image.length);
-    } else {
-      frontImage.src = "";
-      frontImage.style.display = "none";
-    }
-
-    if (cards[currentCard].definition_image) {
-      backImage.src = cards[currentCard].definition_image;
-      backImage.style.display = "block";
-      console.log(
-        "Definition image length:",
-        cards[currentCard].definition_image.length
-      );
-    } else {
-      backImage.src = "";
-      backImage.style.display = "none";
-    }
-
-    reviewCheckbox.checked = cards[currentCard].review;
-    reviewCheckbox.disabled = isReviewPile;
-
-    if (isFlipped) {
-      card.classList.add("flipped");
-    } else {
-      card.classList.remove("flipped");
-    }
+    frontImage.src = cards[currentCard].term_image || "";
+    frontImage.style.display = cards[currentCard].term_image ? "block" : "none";
+    backImage.src = cards[currentCard].definition_image || "";
+    backImage.style.display = cards[currentCard].definition_image
+      ? "block"
+      : "none";
+    document.getElementById("reviewCheckbox").checked =
+      cards[currentCard].review;
+    document.getElementById("reviewCheckbox").disabled = isReviewPile;
+    if (isFlipped) card.classList.add("flipped");
+    else card.classList.remove("flipped");
   } else {
     frontText.textContent = currentDeckId
       ? "No cards in this deck"
       : isReviewPile
       ? "No cards in review pile"
       : "No deck selected";
-    backText.textContent = "Add some cards or create a deck!";
+    backText.textContent = "Add some cards or select a deck!";
     frontImage.style.display = "none";
     backImage.style.display = "none";
-    reviewCheckbox.checked = false;
-    reviewCheckbox.disabled = true;
+    document.getElementById("reviewCheckbox").checked = false;
+    document.getElementById("reviewCheckbox").disabled = true;
     card.classList.remove("flipped");
   }
   updateNavigationButtons();
 }
 
-// Update card counter
 function updateCounter() {
-  if (counter) {
+  if (counter)
     counter.textContent = `${cards.length > 0 ? currentCard + 1 : 0} / ${
       cards.length
     }`;
-  }
 }
 
-// Enable/disable navigation buttons
 function updateNavigationButtons() {
   const prevButton = document.querySelector("#controls button:nth-child(1)");
   const nextButton = document.querySelector("#controls button:nth-child(2)");
@@ -312,7 +337,6 @@ function updateNavigationButtons() {
   }
 }
 
-// Navigate to previous card
 function prevCard() {
   if (cards.length > 0 && currentCard > 0) {
     currentCard--;
@@ -322,7 +346,6 @@ function prevCard() {
   }
 }
 
-// Navigate to next card
 function nextCard() {
   if (cards.length > 0 && currentCard < cards.length - 1) {
     currentCard++;
@@ -332,7 +355,4 @@ function nextCard() {
   }
 }
 
-// Initial load
-document.addEventListener("DOMContentLoaded", () => {
-  loadDecks();
-});
+loadDecks();
